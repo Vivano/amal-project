@@ -19,7 +19,7 @@ class LS4PriorLayer(nn.Module):
         self.N = hidden_dim
         self.H = latent_dim
         self.step = time_step
-        self.A, B, C, E, F = init_simple_matrices(self.p, self.N, self.p_, self.step)
+        self.A, B, C, E, F = init_matrices(self.p, self.N, self.p_, self.step)
         self.B, self.C = nn.Parameter(B), nn.Parameter(C)
         self.E, self.F = nn.Parameter(E), nn.Parameter(F)
         self.gelu = nn.GELU()
