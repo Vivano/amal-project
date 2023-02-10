@@ -14,13 +14,13 @@ def bar_matrix(M, A, hidden_dim, step):
     inv = torch.linalg.inv(I - step/2 * A)
     return step * inv @ M
 
-def init_simple_matrices(input_dim, hidden_dim, output_dim, step, rng):
+def init_simple_matrices(input_dim, hidden_dim, output_dim, step):
     A = HiPPO(hidden_dim)
     I = torch.eye(hidden_dim, hidden_dim)
     inv1 = torch.linalg.inv(I - step/2 * A)
     inv2 = torch.linalg.inv(I + step/2 * A)
-    B = torch.rand(hidden_dim, input_dim, generator=rng)
-    C = torch.rand(output_dim, hidden_dim, generator=rng)
+    B = torch.rand(hidden_dim, input_dim)
+    C = torch.rand(output_dim, hidden_dim)
     Abar = inv1 @ inv2
     Bbar = bar_matrix(B, A, hidden_dim, step)
     return Abar, Bbar, C
@@ -37,15 +37,15 @@ def init_stack_matrices(Nlatent, hidden_dim, latent_dim, output_dim, A, step):
     return Elist, Flist
 
 
-def init_matrices(input_dim, hidden_dim, latent_dim, output_dim, step, rng):
+def init_matrices(input_dim, hidden_dim, latent_dim, output_dim, step):
     A = HiPPO(hidden_dim)
     I = torch.eye(hidden_dim, hidden_dim)
     inv1 = torch.linalg.inv(I - step/2 * A)
     inv2 = torch.linalg.inv(I + step/2 * A)
-    B = torch.rand(hidden_dim, input_dim, generator=rng)
-    C = torch.rand(output_dim, hidden_dim, generator=rng)
-    E = torch.rand(hidden_dim, latent_dim, generator=rng)
-    F = torch.rand(output_dim, latent_dim, generator=rng)
+    B = torch.rand(hidden_dim, input_dim)
+    C = torch.rand(output_dim, hidden_dim)
+    E = torch.rand(hidden_dim, latent_dim)
+    F = torch.rand(output_dim, latent_dim)
     Abar = inv1 @ inv2
     Bbar = bar_matrix(B, A, hidden_dim, step)
     Ebar = bar_matrix(E, A, hidden_dim, step)
