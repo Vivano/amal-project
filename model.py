@@ -12,15 +12,14 @@ OUPUT
     * y
 """
 class LS4PriorLayer(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, latent_dim, time_step, randomness) -> None:
+    def __init__(self, input_dim, output_dim, hidden_dim, latent_dim, time_step) -> None:
         super().__init__()
         self.p = input_dim
         self.p_ = output_dim
         self.N = hidden_dim
         self.H = latent_dim
         self.step = time_step
-        self.rng = randomness
-        self.A, B, C, E, F = init_simple_matrices(self.p, self.N, self.p_, self.step, self.rng)
+        self.A, B, C, E, F = init_simple_matrices(self.p, self.N, self.p_, self.step)
         self.B, self.C = nn.Parameter(B), nn.Parameter(C)
         self.E, self.F = nn.Parameter(E), nn.Parameter(F)
         self.gelu = nn.GELU()
@@ -38,9 +37,9 @@ class LS4PriorLayer(nn.Module):
 """ LS4 Prior block
 """
 class LS4PriorBlock(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, latent_dim, time_step, randomness) -> None:
+    def __init__(self, input_dim, output_dim, hidden_dim, latent_dim, time_step) -> None:
         super().__init__()
-        self.ls4 = LS4PriorLayer(input_dim, output_dim, hidden_dim, latent_dim, time_step, randomness)
+        self.ls4 = LS4PriorLayer(input_dim, output_dim, hidden_dim, latent_dim, time_step)
         self.lin = nn.Linear(latent_dim, output_dim)
         self.norm = nn.LayerNorm(latent_dim)
     def forward(self, z):
@@ -48,11 +47,11 @@ class LS4PriorBlock(nn.Module):
         return tmp
 
 
-def append_ascent(nprior, nlatent, input_dim, output_dim, hidden_dim, latent_dim, time_step, randomness):
+def append_ascent(nprior, nlatent, input_dim, output_dim, hidden_dim, latent_dim, time_step):
     res = []
     for n in range(nlatent):
         for i in range(nprior):
-            res.append(LS4PriorBlock(input_dim, output_dim, hidden_dim, (2**(n+1))*latent_dim, time_step, randomness))
+            res.append(LS4PriorBlock(input_dim, output_dim, hidden_dim, (2**(n+1))*latent_dim, time_step))
         res.append(nn.Linear((2**(n+1))*latent_dim, (2**n)*latent_dim))
     return res
 
@@ -60,15 +59,15 @@ def append_ascent(nprior, nlatent, input_dim, output_dim, hidden_dim, latent_dim
 """ LS4 Prior Network 
 """
 class LS4PriorNet(nn.Module):
-    def __init__(self, Nlatent, Nprior, input_dim, output_dim, hidden_dim, latent_dim, time_step, length, randomness):
+    def __init__(self, Nlatent, Nprior, input_dim, output_dim, hidden_dim, latent_dim, time_step, length):
         super().__init__()
         self.nlatent = Nlatent
         self.nprior = Nprior
         layers_descent = [nn.Linear((2**n) * latent_dim, (2**(n+1)) * latent_dim) for n in range(self.nlatent)] # -1 ?
-        layers_ascent = append_ascent(self.nprior, self.nlatent, input_dim, output_dim, hidden_dim, latent_dim, time_step, randomness)
+        layers_ascent = append_ascent(self.nprior, self.nlatent, input_dim, output_dim, hidden_dim, latent_dim, time_step)
         self.descent = nn.Sequential(*layers_descent)
         self.ascent = nn.Sequential(*layers_ascent)
-        self.reparam = LS4PriorBlock(input_dim, output_dim, hidden_dim, latent_dim, time_step, randomness)
+        self.reparam = LS4PriorBlock(input_dim, output_dim, hidden_dim, latent_dim, time_step)
         self.mu = nn.Parameter(torch.randn(latent_dim))
         self.sigma = nn.Parameter(torch.randn(latent_dim, latent_dim))
         self.length = length
