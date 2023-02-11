@@ -20,71 +20,20 @@ def bar_matrix(M, A, hidden_dim, step):
     inv = torch.linalg.inv(I - step/2 * A)
     return step * inv @ M
 
-def init_beta(A, input_dim, hidden_dim, Nlatent, Nprior, step):
-    B = [torch.rand(hidden_dim, input_dim) for n in range(Nprior)]
-    Bbar = [bar_matrix(b, A, hidden_dim, step) for b in B]
-    Earray = []
-    for n in range(Nprior):
-        Earray.append([bar_matrix(torch.randn(hidden_dim, 2**k * hidden_dim), A, hidden_dim, step) for k in range(Nlatent)])
-    return Bbar, Earray
 
-
-# def init_simple_matrices(input_dim, hidden_dim, output_dim, step):
-#     A = HiPPO(hidden_dim)
-#     I = torch.eye(hidden_dim, hidden_dim)
-#     inv1 = torch.linalg.inv(I - step/2 * A)
-#     inv2 = torch.linalg.inv(I + step/2 * A)
-#     B = torch.rand(hidden_dim, input_dim)
-#     C = torch.rand(output_dim, hidden_dim)
-#     Abar = inv1 @ inv2
-#     Bbar = bar_matrix(B, A, hidden_dim, step)
-#     return Abar, Bbar, C
-
-# def init_stack_matrices(Nlatent, hidden_dim, latent_dim, output_dim, A, step):
-#     Elist, Flist = [], []
-#     for k in range(Nlatent):
-#         E = torch.randn(hidden_dim, (k+1)*latent_dim)
-#         F = torch.randn(output_dim, (k+1)*latent_dim)
-#         Ebar = bar_matrix(E, A, hidden_dim, step)
-#         Fbar = bar_matrix(F, A, hidden_dim, step)
-#         Elist.append(Ebar)
-#         Flist.append(Fbar)
-#     return Elist, Flist
-
-
-def init_matrices(input_dim, hidden_dim, latent_dim, output_dim, step):
-    A = HiPPO(hidden_dim)
-    I = torch.eye(hidden_dim, hidden_dim)
-    inv1 = torch.linalg.inv(I - step/2 * A)
-    inv2 = torch.linalg.inv(I + step/2 * A)
+def init_params(A, input_dim, hidden_dim, latent_dim, output_dim, step):
     B = torch.rand(hidden_dim, input_dim)
     C = torch.rand(output_dim, hidden_dim)
     E = torch.rand(hidden_dim, latent_dim)
     F = torch.rand(output_dim, latent_dim)
-    Abar = inv1 @ inv2
     Bbar = bar_matrix(B, A, hidden_dim, step)
     Ebar = bar_matrix(E, A, hidden_dim, step)
     return Abar, Bbar, C, Ebar, F
 
 
 
-def discretize(A, B, C, E, step):   # A adapter dans notre cas
-    I = torch.eye(A.shape[0])
-    BL = torch.linalg.inv(I - (step / 2.0) * A)
-    Ab = BL @ (I + (step / 2.0) * A)
-    Bb = (BL * step) @ B
-    Eb = (BL * step) @ E
-    return Ab, Bb, C, Eb
-
-
 """ Function creating the kernels
 """
-# def materialize_kernel(z, A, M, L):
-#         # L = z.shape[1]     # z: (Batch_size, L, 1)
-#         kernel =  torch.stack(
-#             [(torch.matrix_power(A, l) @ M) for l in range(L)]
-#         )
-#         return kernel
 def materialize_kernel(A, M, z, length):
     N = A.shape[0]
     res = torch.zeros(N, 1)
@@ -96,16 +45,43 @@ def materialize_kernel(A, M, z, length):
     return A @ res
 
 
-def materialize_kernel_generative(A, B, E, E2, x, z, length):
+def materialize_kernel_generative(A, B, E1, E2, x, z, length):
     # z: (B, L, z_dim) , x: (B, L - 1, input_dim)
     N = A.shape[0]
     res = torch.zeros(N, 1)
     for k in range(length-1):
-        tmp = z[length-1-k]
-        tmp = tmp[:, None]
+        tmp_x = x[length-2-k]
+        tmp_x = tmp_x[:, None]
+        tmp_z = z[length-2-k]
+        tmp_z = tmp_z[:, None]
         Ak = torch.matrix_power(A, k)
-        res += Ak @ B @ tmp + Ak @ E @ tmp
+        res += Ak @ B @ tmp_x + Ak @ E1 @ tmp_z
     return A @ res + E2 @ z[-1]
 
 
+# def beta_parameter(A, input_dim, hidden_dim, latent_dim, nlatent, nprior, step):
+#     B, E = init_beta(A, input_dim, hidden_dim, latent_dim, nlatent, nprior, step)
+#     Bparam, Eparam = nn.ParameterList([nn.Parameter(b) for b in B]), nn.ParameterList([nn.ParameterList([nn.Parameter(e) for e in elist]) for elist in E])
+#     return Bparam, Eparam
 
+
+class mySequential(nn.Sequential):
+    def forward(self, *inputs):
+        for module in self._modules.values():
+            if type(inputs) == tuple:
+                inputs = module(*inputs)
+            else:
+                inputs = module(inputs)
+        return inputs
+
+
+class twoLinear(nn.Module):
+    def __init__(self, n, nlatent, hidden_dim) -> None:
+        super().__init__()
+        self.fc1 = nn.Linear((2**(nlatent-n))*hidden_dim, (2**(nlatent-n-1))*hidden_dim)
+        self.fc2 = nn.Linear((2**(nlatent-n))*hidden_dim, (2**(nlatent-n-1))*hidden_dim)
+
+    def forward(self,x,z):
+        x = self.fc1(x)
+        z = self.fc2(z)
+        return x, z
