@@ -8,33 +8,48 @@ def HiPPO(N):
     A = P[:, None] * P[None, :]
     A = torch.tril(A) - torch.diag(torch.arange(N))
     return -A
+def Abar(A, hidden_dim, step):
+    I = torch.eye(hidden_dim, hidden_dim)
+    inv1 = torch.linalg.inv(I - step/2 * A)
+    inv2 = torch.linalg.inv(I + step/2 * A)
+    return inv1 @ inv2
+    
 
 def bar_matrix(M, A, hidden_dim, step):
     I = torch.eye(hidden_dim, hidden_dim)
     inv = torch.linalg.inv(I - step/2 * A)
     return step * inv @ M
 
-def init_simple_matrices(input_dim, hidden_dim, output_dim, step):
-    A = HiPPO(hidden_dim)
-    I = torch.eye(hidden_dim, hidden_dim)
-    inv1 = torch.linalg.inv(I - step/2 * A)
-    inv2 = torch.linalg.inv(I + step/2 * A)
-    B = torch.rand(hidden_dim, input_dim)
-    C = torch.rand(output_dim, hidden_dim)
-    Abar = inv1 @ inv2
-    Bbar = bar_matrix(B, A, hidden_dim, step)
-    return Abar, Bbar, C
+def init_beta(A, input_dim, hidden_dim, Nlatent, Nprior, step):
+    B = [torch.rand(hidden_dim, input_dim) for n in range(Nprior)]
+    Bbar = [bar_matrix(b, A, hidden_dim, step) for b in B]
+    Earray = []
+    for n in range(Nprior):
+        Earray.append([bar_matrix(torch.randn(hidden_dim, 2**k * hidden_dim), A, hidden_dim, step) for k in range(Nlatent)])
+    return Bbar, Earray
 
-def init_stack_matrices(Nlatent, hidden_dim, latent_dim, output_dim, A, step):
-    Elist, Flist = [], []
-    for k in range(Nlatent):
-        E = torch.randn(hidden_dim, (k+1)*latent_dim)
-        F = torch.randn(output_dim, (k+1)*latent_dim)
-        Ebar = bar_matrix(E, A, hidden_dim, step)
-        Fbar = bar_matrix(F, A, hidden_dim, step)
-        Elist.append(Ebar)
-        Flist.append(Fbar)
-    return Elist, Flist
+
+# def init_simple_matrices(input_dim, hidden_dim, output_dim, step):
+#     A = HiPPO(hidden_dim)
+#     I = torch.eye(hidden_dim, hidden_dim)
+#     inv1 = torch.linalg.inv(I - step/2 * A)
+#     inv2 = torch.linalg.inv(I + step/2 * A)
+#     B = torch.rand(hidden_dim, input_dim)
+#     C = torch.rand(output_dim, hidden_dim)
+#     Abar = inv1 @ inv2
+#     Bbar = bar_matrix(B, A, hidden_dim, step)
+#     return Abar, Bbar, C
+
+# def init_stack_matrices(Nlatent, hidden_dim, latent_dim, output_dim, A, step):
+#     Elist, Flist = [], []
+#     for k in range(Nlatent):
+#         E = torch.randn(hidden_dim, (k+1)*latent_dim)
+#         F = torch.randn(output_dim, (k+1)*latent_dim)
+#         Ebar = bar_matrix(E, A, hidden_dim, step)
+#         Fbar = bar_matrix(F, A, hidden_dim, step)
+#         Elist.append(Ebar)
+#         Flist.append(Fbar)
+#     return Elist, Flist
 
 
 def init_matrices(input_dim, hidden_dim, latent_dim, output_dim, step):
@@ -72,7 +87,6 @@ def discretize(A, B, C, E, step):   # A adapter dans notre cas
 #         return kernel
 def materialize_kernel(A, M, z, length):
     N = A.shape[0]
-    H = M.shape[1]
     res = torch.zeros(N, 1)
     for k in range(length):
         tmp = z[length-1-k]
@@ -82,13 +96,16 @@ def materialize_kernel(A, M, z, length):
     return A @ res
 
 
+def materialize_kernel_generative(A, B, E, E2, x, z, length):
+    # z: (B, L, z_dim) , x: (B, L - 1, input_dim)
+    N = A.shape[0]
+    res = torch.zeros(N, 1)
+    for k in range(length-1):
+        tmp = z[length-1-k]
+        tmp = tmp[:, None]
+        Ak = torch.matrix_power(A, k)
+        res += Ak @ B @ tmp + Ak @ E @ tmp
+    return A @ res + E2 @ z[-1]
 
 
 
-def append_ascent(A, nA, B, nB, nlayers):
-    res = []
-    for i in range(nlayers):
-        for iA in range(nA):
-            res.append(A)
-        res.append(B)
-    return res
