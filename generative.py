@@ -1,3 +1,9 @@
+from utils import *
+
+
+
+""" Generative Layer 
+"""
 class LS4GenerativeLayer(nn.Module):
 
     def __init__(self, A, input_dim, output_dim, hidden_dim, latent_dim, step) -> None:
@@ -62,7 +68,8 @@ class LS4GenerativeResBlock(nn.Module):
         return x + tmp_x, z + tmp_z
 
 
-# Function stacking all the different layers allowing to get back to the initial latent space from the deep latent space
+    
+# Function stacking all the different layers allowing to get back to the initial latent space from the deep latent space in the generative network
 def append_ascent_generative(nprior, nlatent, A, input_dim, output_dim, hidden_dim, latent_dim, step):
     nnseq = []
     for n in range(1, nlatent+1):
@@ -70,6 +77,8 @@ def append_ascent_generative(nprior, nlatent, A, input_dim, output_dim, hidden_d
             nnseq.append(LS4GenerativeResBlock(A, 2**(nlatent-n)*hidden_dim, output_dim, hidden_dim, (2**(nlatent-n))*hidden_dim, step))
         nnseq.append(twoLinear((2**(nlatent-n))*hidden_dim, (2**(nlatent-n-1))*hidden_dim))
     return nnseq
+
+
 
 
 """ Generative Net 
