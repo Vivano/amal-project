@@ -1,3 +1,7 @@
+from utils import *
+
+
+
 class LS4InferenceLayer(nn.Module):
     def __init__(self, A, input_dim, output_dim, hidden_dim, latent_dim, step) -> None:
         super().__init__()
