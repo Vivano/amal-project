@@ -8,8 +8,9 @@ def HiPPO(N):
     A = P[:, None] * P[None, :]
     A = torch.tril(A) - torch.diag(torch.arange(N))
     return -A
-def Abar(A, hidden_dim, step):
-    I = torch.eye(hidden_dim, hidden_dim)
+def Abar(A, step):
+    N = A.shape[0]
+    I = torch.eye(N, N)
     inv1 = torch.linalg.inv(I - step/2 * A)
     inv2 = torch.linalg.inv(I + step/2 * A)
     return inv1 @ inv2
@@ -28,8 +29,10 @@ def init_params(A, input_dim, hidden_dim, latent_dim, output_dim, step):
     F = torch.rand(output_dim, latent_dim)
     Bbar = bar_matrix(B, A, hidden_dim, step)
     Ebar = bar_matrix(E, A, hidden_dim, step)
-    return Abar, Bbar, C, Ebar, F
+    return Bbar, C, Ebar, F
 
+
+#################################################
 
 
 """ Function creating the kernels
@@ -56,13 +59,18 @@ def materialize_kernel_generative(A, B, E1, E2, x, z, length):
         tmp_z = tmp_z[:, None]
         Ak = torch.matrix_power(A, k)
         res += Ak @ B @ tmp_x + Ak @ E1 @ tmp_z
-    return A @ res + E2 @ z[-1]
+    zz = E2 @ z[-1]
+    zz = zz[:, None]
+    return A @ res + zz
 
 
 # def beta_parameter(A, input_dim, hidden_dim, latent_dim, nlatent, nprior, step):
 #     B, E = init_beta(A, input_dim, hidden_dim, latent_dim, nlatent, nprior, step)
 #     Bparam, Eparam = nn.ParameterList([nn.Parameter(b) for b in B]), nn.ParameterList([nn.ParameterList([nn.Parameter(e) for e in elist]) for elist in E])
 #     return Bparam, Eparam
+
+
+#################################################@
 
 
 class mySequential(nn.Sequential):
