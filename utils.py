@@ -3,6 +3,22 @@ import torch.nn as nn
 import torch.nn.functional as func
 
 
+
+class TimeseriesDataset(torch.utils.data.Dataset):   
+    def __init__(self, X, y):
+        self.X = X
+        self.y = y
+
+    def __len__(self):
+        return self.X.__len__() 
+
+    def __getitem__(self, index):
+        return self.X[index], self.y[index]
+
+
+###################################################################
+
+
 def HiPPO(N):
     P = torch.sqrt(1 + 2 * torch.arange(N))
     A = P[:, None] * P[None, :]
@@ -70,25 +86,35 @@ def materialize_kernel_generative(A, B, E1, E2, x, z, length):
 #     return Bparam, Eparam
 
 
-#################################################@
+################################################################
 
 
+# class mySequential(nn.Sequential):
+#     def forward(self, *inputs):
+#         for module in self._modules.values():
+#             if type(inputs) == tuple:
+#                 inputs = module(*inputs)
+#             else:
+#                 inputs = module(inputs)
+#         return inputs
+
+
+
+# class inheriting nn.Sequential to handle multi inputs forward
 class mySequential(nn.Sequential):
-    def forward(self, *inputs):
+    def forward(self, input1, input2):
         for module in self._modules.values():
-            if type(inputs) == tuple:
-                inputs = module(*inputs)
-            else:
-                inputs = module(inputs)
-        return inputs
+            input1, input2 = module(input1, input2)
+        return input1, input2
 
 
+
+# class performing two linear layers in parallel for two different inputs
 class twoLinear(nn.Module):
-    def __init__(self, n, nlatent, hidden_dim) -> None:
+    def __init__(self, n, nlatent, hidden_dim, latent_dim) -> None:
         super().__init__()
         self.fc1 = nn.Linear((2**(nlatent-n))*hidden_dim, (2**(nlatent-n-1))*hidden_dim)
         self.fc2 = nn.Linear((2**(nlatent-n))*hidden_dim, (2**(nlatent-n-1))*hidden_dim)
-
     def forward(self,x,z):
         x = self.fc1(x)
         z = self.fc2(z)

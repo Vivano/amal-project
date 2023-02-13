@@ -42,6 +42,19 @@ class LS4PriorLayer(nn.Module):
 
 """ LS4 Prior block
 """
+# single element output
+class LS4PriorBlock(nn.Module):
+    def __init__(self, A, input_dim, output_dim, hidden_dim, latent_dim, step) -> None:
+        super().__init__()
+        self.ls4 = LS4PriorLayer(A, input_dim, output_dim, hidden_dim, latent_dim, step)
+        self.lin = nn.Linear(output_dim,latent_dim)
+        self.norm = nn.LayerNorm([latent_dim])
+
+    def forward(self, z):
+        tmp = self.lin(self.ls4(z))
+        ztilde = self.norm(tmp) + z[:,-1,:]
+        return ztilde 
+# sequence output
 class LS4PriorResBlock(nn.Module):
     def __init__(self, A, input_dim, output_dim, hidden_dim, latent_dim, step) -> None:
         super().__init__()
@@ -55,17 +68,6 @@ class LS4PriorResBlock(nn.Module):
         znew = tmp.unsqueeze(dim=1) 
         return z + znew
 
-class LS4PriorBlock(nn.Module):
-    def __init__(self, A, input_dim, output_dim, hidden_dim, latent_dim, step) -> None:
-        super().__init__()
-        self.ls4 = LS4PriorLayer(A, input_dim, output_dim, hidden_dim, latent_dim, step)
-        self.lin = nn.Linear(output_dim,latent_dim)
-        self.norm = nn.LayerNorm([latent_dim])
-
-    def forward(self, z):
-        tmp = self.lin(self.ls4(z))
-        ztilde = self.norm(tmp) + z[:,-1,:]
-        return ztilde 
 
 
 def append_ascent(nprior, nlatent, A, input_dim, output_dim, hidden_dim, latent_dim, step):
@@ -73,9 +75,8 @@ def append_ascent(nprior, nlatent, A, input_dim, output_dim, hidden_dim, latent_
     for n in range(nlatent):
         for i in range(nprior):
             res.append(LS4PriorResBlock(A, input_dim, output_dim, hidden_dim, (2**(nlatent-n))*hidden_dim, step))
-        res.append(nn.Linear(2**(nlatent-n)*hidden_dim, 2**(nlatent-n-1)*hidden_dim))
+        res.append(nn.Linear((2**(nlatent-n))*hidden_dim, (2**(nlatent-n-1))*hidden_dim))
     return res
-
 
 
 
@@ -94,7 +95,6 @@ class LS4PriorNet(nn.Module):
         layers_ascent = append_ascent(self.nprior, self.nlatent, A, input_dim, output_dim, hidden_dim, latent_dim, step)
         self.descent = nn.Sequential(*layers_descent)
         self.ascent = nn.Sequential(*layers_ascent)
-        # self.reparam = LS4PriorBlock(A, input_dim, output_dim, hidden_dim, latent_dim, step)
         self.reparam_mu = LS4PriorBlock(A, input_dim, output_dim, hidden_dim, latent_dim, step)
         self.reparam_sigma = LS4PriorBlock(A, input_dim, output_dim, hidden_dim, latent_dim, step)
     
@@ -103,9 +103,6 @@ class LS4PriorNet(nn.Module):
         zNlatent = self.descent(zh)
         ztilde = self.ascent(zNlatent)
         ztilde = self.lintransfoinv(ztilde)
-        # zgen = self.reparam(ztilde)
-        # znew = zgen.unsqueeze(dim=1)
-        # return torch.cat((z,znew), dim=1)
-        mu_z = self.reparam_mu(ztilde)
-        sigma_z = self.reparam_sigma(ztilde)
-        return mu_z, sigma_z
+        z_mu = self.reparam_mu(ztilde)
+        z_sigma = self.reparam_sigma(ztilde)
+        return z_mu, z_sigma

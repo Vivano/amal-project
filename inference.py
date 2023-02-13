@@ -1,6 +1,7 @@
 from utils import *
 
 
+""" Inference Layer """
 
 class LS4InferenceLayer(nn.Module):
     def __init__(self, A, input_dim, output_dim, hidden_dim, latent_dim, step) -> None:
@@ -44,6 +45,8 @@ x = torch.rand(batch_size,length,input_dim)
 print(model(x))  """
 
 
+""" Inference Block """
+
 class LS4InferenceBlock(nn.Module):
     def __init__(self, A, input_dim, output_dim, hidden_dim, latent_dim, step) -> None:
         super().__init__()
@@ -54,7 +57,7 @@ class LS4InferenceBlock(nn.Module):
     def forward(self, x):
         tmp = self.lin(self.ls4(x))
         xtilde = self.norm(tmp) + x[:,-1,:]
-        return xtilde 
+        return xtilde
 
 
 """ hidden_dim = 5
@@ -69,18 +72,34 @@ model = LS4InferenceBlock(A, input_dim, output_dim, hidden_dim, latent_dim, time
 x = torch.rand(batch_size,length,input_dim)
 print(model(x))  """
 
+
+""" Inference Block """
+# sequence output
 class LS4InferenceResBlock(nn.Module):
     def __init__(self, A, input_dim, output_dim, hidden_dim, latent_dim, step) -> None:
         super().__init__()
         self.ls4 = LS4InferenceLayer(A, input_dim, output_dim, hidden_dim, latent_dim, step)
         self.lin = nn.Linear(output_dim,input_dim)
         self.norm = nn.LayerNorm([input_dim])
-
     def forward(self, x):
         tmp = self.lin(self.ls4(x))
         xtilde = self.norm(tmp) + x[:,-1,:]
         xnew = xtilde.unsqueeze(dim=1) 
         return x + xnew
+    
+class LS4InferenceResBlock(nn.Module):
+    def __init__(self, A, input_dim, output_dim, hidden_dim, latent_dim, step) -> None:
+        super().__init__()
+        self.ls4 = LS4InferenceLayer(A, input_dim, output_dim, hidden_dim, latent_dim, step)
+        self.lin = nn.Linear(output_dim,input_dim)
+        self.norm = nn.LayerNorm([input_dim])
+    def forward(self, x):
+        tmp = self.lin(self.ls4(x))
+        xtilde = self.norm(tmp) + x[:,-1,:]
+        xnew = xtilde.unsqueeze(dim=1) 
+        return x + xnew
+
+
 
 def append_ascent_inference(nprior, nlatent, A, input_dim, output_dim, hidden_dim, latent_dim, step):
     res = []
@@ -89,6 +108,10 @@ def append_ascent_inference(nprior, nlatent, A, input_dim, output_dim, hidden_di
             res.append(LS4InferenceResBlock(A, (2**(nlatent-n))*hidden_dim, output_dim, hidden_dim, latent_dim, step))
         res.append(nn.Linear((2**(nlatent-n))*hidden_dim, (2**(nlatent-n-1))*hidden_dim))
     return res
+
+
+
+""" Inference Network """
 
 class LS4InferenceNet(nn.Module):
 
@@ -107,7 +130,6 @@ class LS4InferenceNet(nn.Module):
         self.reparam_sigma = LS4InferenceBlock(A, input_dim, output_dim, hidden_dim, latent_dim, step)
         self.fc1 = nn.Linear(input_dim,latent_dim)
         self.fc2 = nn.Linear(input_dim,latent_dim)
-
     
     def forward(self, x):
         xh = self.lintransfo(x)
